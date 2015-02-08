@@ -155,8 +155,8 @@ class KMeansUFLPipelineOCR(object):
         return self.classifier.predict(self.get_data_representation(data))
 
 
-def load_data(data_filename, is_random_part=False, part_size=1000):
-    print 'Loading data'
+def load_train_data(data_filename, is_random_part=False, part_size=1000):
+    print 'Loading train data'
     df = pd.read_csv(data_filename)
 
     labels = df.label.as_matrix()
@@ -166,6 +166,19 @@ def load_data(data_filename, is_random_part=False, part_size=1000):
         return data[indexes], labels[indexes]
     else:
         return data, labels
+
+
+def load_test_data(path_test):
+    print 'Loading test data'
+    return pd.read_csv(path_test).as_matrix()
+
+
+def write_labels_csv(path_labels, labels):
+    print 'Writing labels'
+    with open(path_labels, 'w') as f:
+        f.write('ImageId,Label\n')
+        for i in range(len(labels)):
+            f.write(','.join([str(i + 1), str(labels[i])]) + '\n')
 
 
 def describe_data(data):
@@ -183,23 +196,31 @@ def plot_patches(data, n_row, n_col):
 
 
 if __name__ == '__main__':
-    pipeline = KMeansUFLPipelineOCR(kmeans_method=kmeans_types.KMeansClassic(n_clusters=20, n_init=1),
+    pipeline = KMeansUFLPipelineOCR(kmeans_method=KMeans(n_clusters=700, n_jobs=-1),
                                     classifier=svm.SVC())
 
-    train_data, target = load_data('data/mnist/train.csv', is_random_part=True, part_size=100)
+    train_data = load_train_data('data/mnist/train.csv', is_random_part=True, part_size=3000)[0]
 
     pipeline.unsupervised_features_learning(train_data)
 
-    # train_data, target = load_data('data/mnist/train.csv', is_random_part=True, part_size=10000)
+    train_data, target = load_train_data('data/mnist/train.csv')
+    pipeline.fit(train_data, target)
+
+    train_data = None
+    target = None
+
     # X_train, X_test, y_train, y_test = cross_validation.train_test_split(train_data, target, test_size=0.2,
     #                                                                      random_state=0)
-
+    #
     # pipeline.fit(X_train, y_train)
     # predicted = pipeline.predict(X_test)
-
+    #
     # print("Classification report for classifier %s:\n%s\n"
     #       % (pipeline.classifier, metrics.classification_report(y_test, predicted)))
-
+    #
     # plot_patches(pipeline.dictionary.T, 7, 7)
+
+    test_data = load_test_data('data/mnist/test.csv')
+    write_labels_csv('data/mnist/test_labels.csv', pipeline.predict(test_data))
 
 
