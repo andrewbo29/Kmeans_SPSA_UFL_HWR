@@ -38,6 +38,7 @@ class KMeansClassic(KMeansClustering):
         self.tol = tol
         self.n_init = n_init
         self.kmeans_pp = kmeans_pp
+        self.is_empty_cluster = False
 
     def centers_init_rand(self, data):
         init_centers_ind = np.random.choice(data.shape[0], size=self.n_clusters, replace=False)
@@ -86,9 +87,11 @@ class KMeansClassic(KMeansClustering):
         else:
             self.centers_init_rand(data)
         self.clusters_fill(data)
+
         for label in xrange(self.n_clusters):
             if not data[self.labels_ == label].any():
-                print 'Empty cluster'
+                self.is_empty_cluster = True
+                break
 
         iter_num = 1
         while iter_num < self.max_iter:
@@ -96,16 +99,30 @@ class KMeansClassic(KMeansClustering):
             old_centers = self.cluster_centers_
             self.centers_calc(data)
             self.clusters_fill(data)
+
+            for label in xrange(self.n_clusters):
+                if not data[self.labels_ == label].any():
+                    self.is_empty_cluster = True
+                    break
+
             if self.stop_criterion(old_centers):
                 break
             iter_num += 1
+
+        if self.is_empty_cluster:
+            return
 
         return [self.cluster_centers_, self.inter_cluster_dist(data)]
 
     def fit(self, data):
         fit_steps = []
-        for i in xrange(self.n_init):
-            fit_steps.append(self.fit_step(data))
+        i = 0
+        while i < self.n_init:
+            self.is_empty_cluster = False
+            fit_step_res = self.fit_step(data)
+            if not self.is_empty_cluster:
+                fit_steps.append(fit_step_res)
+                i += 1
         best_ind = np.argmin([fit_steps[i][1] for i in xrange(self.n_init)])
         # print('Best k-means inter-clusters distance: %.2f' % fit_steps[best_ind][1])
 
@@ -282,11 +299,11 @@ if __name__ == '__main__':
 
     # kmeans.clusters_fill(data_set)
 
-    # kmeans = KMeansClassic(n_clusters=3, kmeans_pp=False)
-    # kmeans.fit(data_set)
-
-    kmeans = KMeansSpherical(n_clusters=3, norm_dist_init=True)
+    kmeans = KMeansClassic(n_clusters=3, kmeans_pp=False)
     kmeans.fit(data_set)
-    kmeans.clusters_fill(data_set)
+
+    # kmeans = KMeansSpherical(n_clusters=3, norm_dist_init=True)
+    # kmeans.fit(data_set)
+    # kmeans.clusters_fill(data_set)
 
     plot_kmeans(data_set, kmeans)
