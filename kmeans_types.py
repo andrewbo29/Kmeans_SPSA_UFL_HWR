@@ -91,26 +91,23 @@ class KMeansClassic(KMeansClustering):
         for label in xrange(self.n_clusters):
             if not data[self.labels_ == label].any():
                 self.is_empty_cluster = True
-                break
+                return
 
         iter_num = 1
         while iter_num < self.max_iter:
             print '  My classic K-means iteration: %d' % iter_num
-            old_centers = self.cluster_centers_
+            old_centers = self.cluster_centers_.copy()
             self.centers_calc(data)
             self.clusters_fill(data)
 
             for label in xrange(self.n_clusters):
                 if not data[self.labels_ == label].any():
                     self.is_empty_cluster = True
-                    break
+                    return
 
             if self.stop_criterion(old_centers):
                 break
             iter_num += 1
-
-        if self.is_empty_cluster:
-            return
 
         return [self.cluster_centers_, self.inter_cluster_dist(data)]
 
@@ -123,6 +120,8 @@ class KMeansClassic(KMeansClustering):
             if not self.is_empty_cluster:
                 fit_steps.append(fit_step_res)
                 i += 1
+            else:
+                print '     Empty cluster'
         best_ind = np.argmin([fit_steps[i][1] for i in xrange(self.n_init)])
         # print('Best k-means inter-clusters distance: %.2f' % fit_steps[best_ind][1])
 
@@ -269,9 +268,7 @@ def plot_kmeans(data, kmeans):
     ax2.scatter(data[:, 0], data[:, 1], c=kmeans.labels_)
 
     ax = fig.add_subplot(2, 1, 2)
-    for label in xrange(kmeans.n_clusters):
-        center_point = kmeans.cluster_centers_[label]
-        ax.plot(center_point[0], center_point[1], 's')
+    ax.scatter(kmeans.cluster_centers_[:, 0], kmeans.cluster_centers_[:, 1], s=40, marker='s', c=range(kmeans.n_clusters))
 
     if isinstance(kmeans, KMeansClassic):
         ax.set_title('Classic K-means')
@@ -283,13 +280,13 @@ def plot_kmeans(data, kmeans):
 
 
 if __name__ == '__main__':
-    N = 500
-    mix_prob = [0.5, 0.3, 0.2]
-    clust_means = [[0, 0], [2, 2], [-2, 4]]
-    clust_cov = [np.diag([1, 1]), [[1, -0.7], [-0.7, 1]], [[1, 0.7], [0.7, 1]]]
+    N = 1000
+    mix_prob = [0.4, 0.2, 0.2, 0.1, 0.1]
+    clust_means = [[0, 0], [2, 2], [-2, 4], [-5, -5], [7, 0]]
+    clust_cov = [np.diag([1, 1]), [[1, -0.7], [-0.7, 1]], [[1, 0.7], [0.7, 1]], np.diag([1, 1]), np.diag([1, 1])]
     data_set = []
 
-    # kmeans = KMeansSPSA(n_clusters=3)
+    # kmeans = KMeansSPSA(n_clusters=5)
     for _ in xrange(N):
         mix_ind = np.random.choice(len(mix_prob), p=mix_prob)
         data_point = np.random.multivariate_normal(clust_means[mix_ind], clust_cov[mix_ind])
@@ -299,7 +296,7 @@ if __name__ == '__main__':
 
     # kmeans.clusters_fill(data_set)
 
-    kmeans = KMeansClassic(n_clusters=3, kmeans_pp=False)
+    kmeans = KMeansClassic(n_clusters=5, n_init=1, kmeans_pp=False)
     kmeans.fit(data_set)
 
     # kmeans = KMeansSpherical(n_clusters=3, norm_dist_init=True)

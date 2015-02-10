@@ -196,7 +196,7 @@ def plot_patches(data, n_row, n_col):
 
 
 if __name__ == '__main__':
-    pipeline = KMeansUFLPipelineOCR(kmeans_method=kmeans_types.KMeansClassic(n_clusters=20, n_init=1),
+    pipeline = KMeansUFLPipelineOCR(kmeans_method=kmeans_types.KMeansClassic(n_clusters=25, n_init=1, max_iter=10),
                                     classifier=svm.SVC())
 
     train_data = load_train_data('data/mnist/train.csv', is_random_part=True, part_size=100)[0]
@@ -218,7 +218,7 @@ if __name__ == '__main__':
     # print("Classification report for classifier %s:\n%s\n"
     #       % (pipeline.classifier, metrics.classification_report(y_test, predicted)))
     #
-    # plot_patches(pipeline.dictionary.T, 7, 7)
+    plot_patches(pipeline.dictionary.T, 5, 5)
 
     # test_data = load_test_data('data/mnist/test.csv')
     # write_labels_csv('data/mnist/test_labels.csv', pipeline.predict(test_data))
