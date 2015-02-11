@@ -196,10 +196,10 @@ def plot_patches(data, n_row, n_col):
 
 
 if __name__ == '__main__':
-    pipeline = KMeansUFLPipelineOCR(kmeans_method=kmeans_types.KMeansClassic(n_clusters=25, n_init=1, max_iter=10),
+    pipeline = KMeansUFLPipelineOCR(kmeans_method=kmeans_types.KMeansSPSA(n_clusters=25),
                                     classifier=svm.SVC())
 
-    train_data = load_train_data('data/mnist/train.csv', is_random_part=True, part_size=100)[0]
+    train_data, target = load_train_data('data/mnist/train.csv', is_random_part=True, part_size=1000)
 
     pipeline.unsupervised_features_learning(train_data)
 
@@ -209,15 +209,15 @@ if __name__ == '__main__':
     # train_data = None
     # target = None
 
-    # X_train, X_test, y_train, y_test = cross_validation.train_test_split(train_data, target, test_size=0.2,
-    #                                                                      random_state=0)
-    #
-    # pipeline.fit(X_train, y_train)
-    # predicted = pipeline.predict(X_test)
-    #
-    # print("Classification report for classifier %s:\n%s\n"
-    #       % (pipeline.classifier, metrics.classification_report(y_test, predicted)))
-    #
+    X_train, X_test, y_train, y_test = cross_validation.train_test_split(train_data, target, test_size=0.2,
+                                                                         random_state=0)
+
+    pipeline.fit(X_train, y_train)
+    predicted = pipeline.predict(X_test)
+
+    print("Classification report for classifier %s:\n%s\n"
+          % (pipeline.classifier, metrics.classification_report(y_test, predicted)))
+
     plot_patches(pipeline.dictionary.T, 5, 5)
 
     # test_data = load_test_data('data/mnist/test.csv')
