@@ -167,9 +167,11 @@ class KMeansSPSA(KMeansClustering):
 
     def alpha_fabric(self):
         return self.alpha / (self.iteration_num ** self.gamma)
+        # return self.alpha / self.iteration_num
 
     def beta_fabric(self):
         return self.beta / (self.iteration_num ** (self.gamma / 4))
+        # return self.beta / (self.iteration_num ** (1. / 2 * self.gamma))
 
     def fit_step(self, w):
         delta_n_t = self.delta_fabric(w.shape[0])[np.newaxis]
