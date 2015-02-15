@@ -1,6 +1,7 @@
 __author__ = 'Andrew'
 
 import numpy as np
+from scipy.spatial.distance import euclidean
 import matplotlib.pyplot as plt
 
 
@@ -13,13 +14,11 @@ class KMeansClustering(object):
         self.cluster_centers_ = np.zeros(n_clusters)
 
     def cluster_decision(self, point):
-        return np.argmin([((self.cluster_centers_[label] - point) ** 2).sum() for label in xrange(self.n_clusters)])
+        return np.argmin([euclidean(self.cluster_centers_[label], point) for label in xrange(self.n_clusters)])
 
     def clusters_fill(self, data):
-        self.labels_ = np.zeros(data.shape[0])
-        for ind in xrange(data.shape[0]):
-            label = self.cluster_decision(data[ind])
-            self.labels_[ind] = label
+        for ind, point in enumerate(data):
+            self.labels_[ind] = self.cluster_decision(point)
 
     def fit_step(self, data):
         pass
@@ -53,7 +52,7 @@ class KMeansClassic(KMeansClustering):
             ind_set = []
             for i in xrange(data.shape[0]):
                 if i not in centers_ind:
-                    d = min([((data[i] - init_centers[prev_label]) ** 2).sum() for prev_label in xrange(label)])
+                    d = min([euclidean(data[i], init_centers[prev_label]) for prev_label in xrange(label)])
                     distances.append(d)
                     ind_set.append(i)
             s = float(sum(distances))
@@ -76,9 +75,15 @@ class KMeansClassic(KMeansClustering):
     def inter_cluster_dist(self, data):
         comm_sum = 0
         for label in xrange(self.n_clusters):
-            comm_sum += sum(
-                [((self.cluster_centers_[label] - point) ** 2).sum() for point in data[self.labels_ == label]])
+            comm_sum += sum([euclidean(self.cluster_centers_[label], point) for point in data[self.labels_ == label]])
         return comm_sum
+
+    def clusters_fill(self, data):
+        super(KMeansClassic, self).clusters_fill(data)
+        for label in xrange(self.n_clusters):
+            if not data[self.labels_ == label].any():
+                self.is_empty_cluster = True
+                return
 
     def fit_step(self, data):
         print '  Initialization classic K-means'
@@ -86,12 +91,10 @@ class KMeansClassic(KMeansClustering):
             self.centers_init_kmeans_pp(data)
         else:
             self.centers_init_rand(data)
+        self.labels_ = np.zeros(data.shape[0])
         self.clusters_fill(data)
-
-        for label in xrange(self.n_clusters):
-            if not data[self.labels_ == label].any():
-                self.is_empty_cluster = True
-                return
+        if self.is_empty_cluster:
+            return
 
         iter_num = 1
         while iter_num <= self.max_iter:
@@ -99,12 +102,8 @@ class KMeansClassic(KMeansClustering):
             old_centers = self.cluster_centers_.copy()
             self.centers_calc(data)
             self.clusters_fill(data)
-
-            for label in xrange(self.n_clusters):
-                if not data[self.labels_ == label].any():
-                    self.is_empty_cluster = True
-                    return
-
+            if self.is_empty_cluster:
+                return
             if self.stop_criterion(old_centers):
                 break
             iter_num += 1
@@ -126,13 +125,13 @@ class KMeansClassic(KMeansClustering):
         # print('Best k-means inter-clusters distance: %.2f' % fit_steps[best_ind][1])
 
         self.cluster_centers_ = fit_steps[best_ind][0]
-        self.clusters_fill(data)
+        super(KMeansClassic, self).clusters_fill(data)
 
 
 class KMeansSPSA(KMeansClustering):
     """SPSA K-means implementation"""
 
-    def __init__(self, n_clusters, gamma=1. / 6, alpha=1. / 4, beta=15):
+    def __init__(self, n_clusters, gamma=1. / 6, alpha=1. / 4, beta=15.):
         super(KMeansSPSA, self).__init__(n_clusters=n_clusters)
 
         self.cluster_centers_ = []
@@ -154,12 +153,11 @@ class KMeansSPSA(KMeansClustering):
         self.iteration_num += 1
 
     def y_vec(self, centers, w):
-        return np.array([((w - centers[label]) ** 2).sum() for label in xrange(self.n_clusters)])
+        return np.array([euclidean(w, centers[label]) for label in xrange(self.n_clusters)])
 
     def j_vec(self, w):
-        y = self.y_vec(self.cluster_centers_, w)
         vec = np.zeros(self.n_clusters)
-        vec[np.argmin(y)] = 1
+        vec[np.argmin(self.y_vec(self.cluster_centers_, w))] = 1
         return vec
 
     def delta_fabric(self, d):
@@ -184,6 +182,10 @@ class KMeansSPSA(KMeansClustering):
         y_plus = self.y_vec(self.cluster_centers_ + beta_n * j_vec_dot_delta_t, w)[np.newaxis]
         y_minus = self.y_vec(self.cluster_centers_ - beta_n * j_vec_dot_delta_t, w)[np.newaxis]
         self.cluster_centers_ -= j_vec_dot_delta_t * np.dot(alpha_n * (y_plus - y_minus) / (2. * beta_n), j_vec)
+
+    def clusters_fill(self, data):
+        self.labels_ = np.zeros(data.shape[0])
+        super(KMeansSPSA, self).clusters_fill(data)
 
 
 class KMeansSpherical(KMeansClustering):
@@ -256,8 +258,7 @@ class KMeansSpherical(KMeansClustering):
     def clusters_fill(self, data):
         self.labels_ = np.zeros(data.shape[0])
         for ind in xrange(data.shape[0]):
-            label = np.argmax(self.S[:, ind])
-            self.labels_[ind] = label
+            self.labels_[ind] = np.argmax(self.S[:, ind])
 
 
 def plot_kmeans(data, kmeans):
@@ -270,16 +271,15 @@ def plot_kmeans(data, kmeans):
     ax2 = fig.add_subplot(2, 1, 2)
     ax2.scatter(data[:, 0], data[:, 1], c=kmeans.labels_)
 
-    ax = fig.add_subplot(2, 1, 2)
-    ax.scatter(kmeans.cluster_centers_[:, 0], kmeans.cluster_centers_[:, 1], s=40, marker='s',
-               c=range(kmeans.n_clusters))
+    ax2.scatter(kmeans.cluster_centers_[:, 0], kmeans.cluster_centers_[:, 1], s=40, marker='s',
+                c=range(kmeans.n_clusters))
 
     if isinstance(kmeans, KMeansClassic):
-        ax.set_title('Classic K-means')
+        ax2.set_title('Classic K-means')
     elif isinstance(kmeans, KMeansSPSA):
-        ax.set_title('SPSA K-means')
+        ax2.set_title('SPSA K-means')
     elif isinstance(kmeans, KMeansSpherical):
-        ax.set_title('Spherical K-means')
+        ax2.set_title('Spherical K-means')
     plt.show()
 
 
