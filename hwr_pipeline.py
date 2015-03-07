@@ -53,17 +53,14 @@ class KMeansUFLPipelineOCR(object):
         return [image[i * 28 + j] for i in xrange(i_coord, i_coord + self.patch_size) for j in
                 xrange(j_coord, j_coord + self.patch_size)]
 
-    def get_image_width(self, image):
-        return int(np.sqrt(image.shape[0]))
-
-    def get_image_length(self, image):
+    def get_square_image_side(self, image):
         return int(np.sqrt(image.shape[0]))
 
     def get_patched_data(self, data):
         print ' Start patching data'
         return np.array([self.get_patch(img, i, j) for img in data for i in
-                         xrange(self.get_image_width(img) - self.patch_size + 1) for j in
-                         xrange(self.get_image_length(img) - self.patch_size + 1)])
+                         xrange(self.get_square_image_side(img) - self.patch_size + 1) for j in
+                         xrange(self.get_square_image_side(img) - self.patch_size + 1)])
 
     def normalize_data(self, data):
         return ((data.T - data.mean(1)) / (np.sqrt(data.var(1) + self.eps_norm))).T
@@ -78,11 +75,10 @@ class KMeansUFLPipelineOCR(object):
         self.dictionary = kmeans.cluster_centers_.T
 
     def get_patched_image(self, image):
-        img_width = self.get_image_width(image)
-        img_length = self.get_image_length(image)
+        number_patches = self.get_square_image_side(image) - self.patch_size + 1
         return np.array([self.get_patch(image, i, j) for i in
-                         xrange(0, img_width - self.patch_size + 1, self.step_size) for j in
-                         xrange(0, img_length - self.patch_size + 1, self.step_size)])
+                         xrange(0, number_patches, self.step_size) for j in
+                         xrange(0, number_patches, self.step_size)])
 
     def simple_encoder(self, x, alpha=0.5):
         return np.maximum(0, np.dot(self.dictionary.T, x) - alpha)
@@ -102,24 +98,27 @@ class KMeansUFLPipelineOCR(object):
         return self.pooling(image, represent)
 
     def pooling(self, image, Y):
-        img_width = self.get_image_width(image)
-        img_length = self.get_image_length(image)
+        number_patches = self.get_square_image_side(image) - self.patch_size + 1
         i_intervals = []
         j_intervals = []
 
-        i_grid = range(0, img_width - self.patch_size + 1, self.step_size)
-        j_grid = range(0, img_length - self.patch_size + 1, self.step_size)
+        i_grid = range(0, number_patches, self.step_size)
+        j_grid = range(0, number_patches, self.step_size)
         bound_val_i = len(i_grid) / self.pooling_grid
         bound_val_j = len(j_grid) / self.pooling_grid
 
         for l in range(self.pooling_grid):
-            i_intervals.append(i_grid[(l * bound_val_i):((l + 1) * bound_val_i)])
-            j_intervals.append(j_grid[(l * bound_val_j):((l + 1) * bound_val_j)])
+            if l == self.pooling_grid - 1:
+                i_intervals.append(i_grid[(l * bound_val_i):])
+                j_intervals.append(j_grid[(l * bound_val_j):])
+            else:
+                i_intervals.append(i_grid[(l * bound_val_i):((l + 1) * bound_val_i)])
+                j_intervals.append(j_grid[(l * bound_val_j):((l + 1) * bound_val_j)])
 
         Z = []
         for i_int in i_intervals:
             for j_int in j_intervals:
-                pool = np.array([Y[i * 21 + j] for i in i_int for j in j_int])
+                pool = np.array([Y[i * number_patches + j] for i in i_int for j in j_int])
                 Z.extend(pool.mean(0))
         return np.array(Z)
 
@@ -206,31 +205,55 @@ def save_patches(data, n_row, n_col, *args):
 
 
 if __name__ == '__main__':
-    pipeline = KMeansUFLPipelineOCR(kmeans_method=kmeans_types.KMeansClassic(n_clusters=25, n_init=1, max_iter=50),
-                                    classifier=svm.SVC())
 
-    train_data = load_train_data('data/mnist/train.csv', is_random_part=True, part_size=100)[0]
+    test_type = 'not_complete'
 
-    pipeline.unsupervised_features_learning(train_data)
+    if test_type == 'complete':
 
-    # train_data, target = load_train_data('data/mnist/train.csv')
-    # pipeline.fit(train_data, target)
-    #
-    # train_data = None
-    # target = None
+        pipeline = KMeansUFLPipelineOCR(
+            kmeans_method=KMeans(n_clusters=500, verbose=True, n_jobs=-1, init='random', n_init=5),
+            classifier=svm.SVC())
 
-    # X_train, X_test, y_train, y_test = cross_validation.train_test_split(train_data, target, test_size=0.2,
-    #                                                                      random_state=0)
+        train_data = load_train_data('data/mnist/train.csv', is_random_part=True, part_size=100)[0]
 
-    # pipeline.fit(X_train, y_train)
-    # predicted = pipeline.predict(X_test)
+        pipeline.unsupervised_features_learning(train_data)
 
-    # print("Classification report for classifier %s:\n%s\n"
-    #       % (pipeline.classifier, metrics.classification_report(y_test, predicted)))
+        train_data, target = load_train_data('data/mnist/train.csv')
 
-    plot_patches(pipeline.dictionary.T, 5, 5)
+        pipeline.fit(train_data, target)
 
-    # test_data = load_test_data('data/mnist/test.csv')
-    # write_labels_csv('data/mnist/test_labels.csv', pipeline.predict(test_data))
+        train_data = None
+        target = None
 
+        test_data = load_test_data('data/mnist/test.csv')
+        write_labels_csv('data/mnist/test_labels.csv', pipeline.predict(test_data))
+    else:
 
+        pipeline = KMeansUFLPipelineOCR(
+        kmeans_method=KMeans(n_clusters=100, verbose=True, n_jobs=-1, init='random', n_init=4),
+            classifier=svm.SVC())
+
+        # pipeline = KMeansUFLPipelineOCR(
+        #     kmeans_method=kmeans_types.KMeansClassic(n_clusters=100, n_init=1),
+        #     classifier=svm.SVC())
+
+        # pipeline = KMeansUFLPipelineOCR(
+        #     kmeans_method=kmeans_types.KMeansSpherical(n_clusters=100, max_iter=10, damped_update=True,
+        #                                                norm_dist_init=True), classifier=svm.SVC())
+
+        train_data = load_train_data('data/mnist/train.csv', is_random_part=True, part_size=100)[0]
+
+        pipeline.unsupervised_features_learning(train_data)
+
+        # plot_patches(pipeline.dictionary.T, 5, 5)
+
+        train_data, target = load_train_data('data/mnist/train.csv', is_random_part=True, part_size=3000)
+
+        X_train, X_test, y_train, y_test = cross_validation.train_test_split(train_data, target, test_size=0.2,
+                                                                             random_state=0)
+
+        pipeline.fit(X_train, y_train)
+        predicted = pipeline.predict(X_test)
+
+        print("Classification report for classifier %s:\n%s\n" % (
+            pipeline.classifier, metrics.classification_report(y_test, predicted)))
