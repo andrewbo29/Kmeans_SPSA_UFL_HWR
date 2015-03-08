@@ -81,7 +81,8 @@ class KMeansClassic(KMeansClustering):
     def clusters_fill(self, data):
         super(KMeansClassic, self).clusters_fill(data)
         for label in xrange(self.n_clusters):
-            if not data[self.labels_ == label].any():
+            if label not in self.labels_:
+                print label
                 self.is_empty_cluster = True
                 return
 
@@ -164,12 +165,12 @@ class KMeansSPSA(KMeansClustering):
         return np.where(np.random.binomial(1, 0.5, size=d) == 0, -1, 1)
 
     def alpha_fabric(self):
-        return self.alpha / (self.iteration_num ** self.gamma)
-        # return self.alpha / self.iteration_num
+        # return self.alpha / (self.iteration_num ** self.gamma)
+        return self.alpha
 
     def beta_fabric(self):
-        return self.beta / (self.iteration_num ** (self.gamma / 4))
-        # return self.beta / (self.iteration_num ** (1. / 2 * self.gamma))
+        # return self.beta / (self.iteration_num ** (self.gamma / 4))
+        return self.beta
 
     def fit_step(self, w):
         delta_n_t = self.delta_fabric(w.shape[0])[np.newaxis]
@@ -300,11 +301,11 @@ if __name__ == '__main__':
 
     # kmeans.clusters_fill(data_set)
 
-    # kmeans = KMeansClassic(n_clusters=5, n_init=1, kmeans_pp=False)
-    # kmeans.fit(data_set)
-
-    kmeans = KMeansSpherical(n_clusters=5, norm_dist_init=True, damped_update=True)
+    kmeans = KMeansClassic(n_clusters=5, n_init=1, kmeans_pp=False)
     kmeans.fit(data_set)
-    kmeans.clusters_fill(data_set)
+
+    # kmeans = KMeansSpherical(n_clusters=5, norm_dist_init=True, damped_update=True)
+    # kmeans.fit(data_set)
+    # kmeans.clusters_fill(data_set)
 
     plot_kmeans(data_set, kmeans)

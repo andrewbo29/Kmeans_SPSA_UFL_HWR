@@ -68,6 +68,7 @@ class KMeansUFLPipelineOCR(object):
     def learn_dictionary(self, data):
         kmeans = self.k_means_method
         if isinstance(kmeans, kmeans_types.KMeansSPSA):
+            np.random.shuffle(data)
             for data_point in data:
                 kmeans.fit(data_point)
         else:
@@ -206,15 +207,19 @@ def save_patches(data, n_row, n_col, *args):
 
 if __name__ == '__main__':
 
-    test_type = 'not_complete'
+    test_type = 'complete'
+    # test_type = 'not_complete'
 
     if test_type == 'complete':
 
         pipeline = KMeansUFLPipelineOCR(
-            kmeans_method=KMeans(n_clusters=500, verbose=True, n_jobs=-1, init='random', n_init=5),
+            kmeans_method=KMeans(n_clusters=500, verbose=True, n_jobs=-1, init='random', n_init=1),
             classifier=svm.SVC())
 
-        train_data = load_train_data('data/mnist/train.csv', is_random_part=True, part_size=100)[0]
+        # pipeline = KMeansUFLPipelineOCR(
+        #     kmeans_method=kmeans_types.KMeansSPSA(n_clusters=500, alpha=0.001, beta=0.001), classifier=svm.SVC())
+
+        train_data = load_train_data('data/mnist/train.csv', is_random_part=True, part_size=1000)[0]
 
         pipeline.unsupervised_features_learning(train_data)
 
@@ -230,7 +235,7 @@ if __name__ == '__main__':
     else:
 
         pipeline = KMeansUFLPipelineOCR(
-        kmeans_method=KMeans(n_clusters=100, verbose=True, n_jobs=-1, init='random', n_init=4),
+            kmeans_method=KMeans(n_clusters=100, verbose=True, n_jobs=-1, init='random', n_init=4),
             classifier=svm.SVC())
 
         # pipeline = KMeansUFLPipelineOCR(
@@ -241,11 +246,14 @@ if __name__ == '__main__':
         #     kmeans_method=kmeans_types.KMeansSpherical(n_clusters=100, max_iter=10, damped_update=True,
         #                                                norm_dist_init=True), classifier=svm.SVC())
 
+        # pipeline = KMeansUFLPipelineOCR(
+        #     kmeans_method=kmeans_types.KMeansSPSA(n_clusters=100, alpha=0.001, beta=0.001), classifier=svm.SVC())
+
         train_data = load_train_data('data/mnist/train.csv', is_random_part=True, part_size=100)[0]
 
         pipeline.unsupervised_features_learning(train_data)
 
-        # plot_patches(pipeline.dictionary.T, 5, 5)
+        # plot_patches(pipeline.dictionary.T, 10, 10)
 
         train_data, target = load_train_data('data/mnist/train.csv', is_random_part=True, part_size=3000)
 
