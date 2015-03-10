@@ -3,9 +3,10 @@ __author__ = 'Andrew'
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
-from sklearn import svm, metrics, cross_validation, neighbors
+from sklearn import svm, metrics, cross_validation
 import matplotlib.pyplot as plt
 import kmeans_types
+from datetime import datetime as dt
 
 
 class ZCAWhitening(object):
@@ -195,73 +196,123 @@ def plot_patches(data, n_row, n_col):
     plt.show()
 
 
-def save_patches(data, n_row, n_col, *args):
-    plt.figure(figsize=(6, 6))
-    for i, comp in enumerate(data):
-        plt.subplot(n_row, n_col, i + 1)
-        plt.imshow(comp.reshape((8, 8)), cmap=plt.cm.gray_r, interpolation='nearest')
-        plt.xticks(())
-        plt.yticks(())
-    plt.savefig('spsa_centroids/gamma_%.2f_alpha_%.2f_beta_%.2f.png' % args)
-
-
 if __name__ == '__main__':
 
-    test_type = 'complete'
-    # test_type = 'not_complete'
+    # test_type = 'complete_train'
+    test_type = 'cross_val'
+    # test_type = 'not_complete_train'
 
-    if test_type == 'complete':
+    if test_type == 'complete_train':
+        print 'Complete training'
+
+        cluster_number = 700
+        ufl_data_size = 3000
 
         pipeline = KMeansUFLPipelineOCR(
-            kmeans_method=KMeans(n_clusters=500, verbose=True, n_jobs=-1, init='random', n_init=1),
-            classifier=svm.SVC())
+            kmeans_method=KMeans(n_clusters=cluster_number, precompute_distances=False, verbose=True, n_jobs=-1,
+                                 init='random', n_init=4), classifier=svm.SVC())
 
         # pipeline = KMeansUFLPipelineOCR(
-        #     kmeans_method=kmeans_types.KMeansSPSA(n_clusters=500, alpha=0.001, beta=0.001), classifier=svm.SVC())
+        # kmeans_method=kmeans_types.KMeansSPSA(n_clusters=cluster_number, alpha=0.001, beta=0.001),
+        # classifier=svm.SVC())
 
-        train_data = load_train_data('data/mnist/train.csv', is_random_part=True, part_size=1000)[0]
+        ufl_train_data = load_train_data('mnist/data/train.csv', is_random_part=True, part_size=ufl_data_size)[0]
 
-        pipeline.unsupervised_features_learning(train_data)
+        pipeline.unsupervised_features_learning(ufl_train_data)
+        ufl_train_data = None
 
-        train_data, target = load_train_data('data/mnist/train.csv')
+        train_data, target = load_train_data('mnist/data/train.csv')
 
         pipeline.fit(train_data, target)
 
         train_data = None
         target = None
 
-        test_data = load_test_data('data/mnist/test.csv')
-        write_labels_csv('data/mnist/test_labels.csv', pipeline.predict(test_data))
+        test_data = load_test_data('mnist/data/test.csv')
+        write_labels_csv('mnist/results/test_labels_%s.csv' % dt.now().strftime('%d_%m_%y_%H_%M_%S'),
+                         pipeline.predict(test_data))
+
+    elif test_type == 'cross_val':
+        print 'Cross validation'
+
+        cluster_numbers = [500, 1000, 1500]
+        ufl_data_sizes = [1000, 5000, 10000]
+
+        train_data, target = load_train_data('mnist/data/train.csv')
+        X_train, X_test, y_train, y_test = cross_validation.train_test_split(train_data, target, test_size=0.2)
+        train_data = None
+        target = None
+
+        results = []
+        conf_matrices = []
+
+        for k in cluster_numbers:
+            for data_size in ufl_data_sizes:
+                print '\nCross validation for K = %d, UFL data size = %d:' % (k, data_size)
+                pipeline = KMeansUFLPipelineOCR(
+                    kmeans_method=KMeans(n_clusters=k, precompute_distances=False, verbose=True, n_jobs=-1,
+                                         max_iter=100, init='random', n_init=7), classifier=svm.SVC())
+
+                ufl_train_data = X_train[np.random.choice(X_train.shape[0], size=data_size, replace=False)]
+
+                pipeline.unsupervised_features_learning(ufl_train_data)
+                ufl_train_data = None
+
+                pipeline.fit(X_train, y_train)
+                predicted = pipeline.predict(X_test)
+
+                results.append(metrics.classification_report(y_test, predicted))
+                conf_matrices.append(metrics.confusion_matrix(y_test, predicted))
+                np.save('mnist/results/dict/dict_kmeans_k_%d_data_size_%d' % (k, data_size), pipeline.dictionary)
+
+        report_filename = 'mnist/results/cv_report_kmeans.txt'
+        res_ind = 0
+        with open(report_filename, 'w') as report_file:
+            for k in cluster_numbers:
+                for data_size in ufl_data_sizes:
+                    report_file.write('Classification report for K = %d, UFL data size = %d:\n%s\n\n' % (
+                        k, data_size, results[res_ind]))
+                    report_file.write('Confusion matrix for K = %d, UFL data size = %d:\n%s\n\n' % (
+                        k, data_size, conf_matrices[res_ind]))
+                    res_ind += 1
+
     else:
+        print 'Not complete training'
+
+        cluster_number = 100
+        ufl_data_size = 500
+        train_data_size = 3000
 
         pipeline = KMeansUFLPipelineOCR(
-            kmeans_method=KMeans(n_clusters=100, verbose=True, n_jobs=-1, init='random', n_init=4),
-            classifier=svm.SVC())
+            kmeans_method=KMeans(n_clusters=cluster_number, precompute_distances=False, verbose=True, n_jobs=-1,
+                                 init='random', n_init=4), classifier=svm.SVC())
 
         # pipeline = KMeansUFLPipelineOCR(
-        #     kmeans_method=kmeans_types.KMeansClassic(n_clusters=100, n_init=1),
-        #     classifier=svm.SVC())
+        # kmeans_method=kmeans_types.KMeansClassic(n_clusters=cluster_number, n_init=1),
+        # classifier=svm.SVC())
 
         # pipeline = KMeansUFLPipelineOCR(
-        #     kmeans_method=kmeans_types.KMeansSpherical(n_clusters=100, max_iter=10, damped_update=True,
-        #                                                norm_dist_init=True), classifier=svm.SVC())
+        # kmeans_method=kmeans_types.KMeansSpherical(n_clusters=cluster_number, max_iter=10, damped_update=True,
+        # norm_dist_init=True), classifier=svm.SVC())
 
         # pipeline = KMeansUFLPipelineOCR(
-        #     kmeans_method=kmeans_types.KMeansSPSA(n_clusters=100, alpha=0.001, beta=0.001), classifier=svm.SVC())
+        # kmeans_method=kmeans_types.KMeansSPSA(n_clusters=cluster_number, alpha=0.001, beta=0.001),
+        # classifier=svm.SVC())
 
-        train_data = load_train_data('data/mnist/train.csv', is_random_part=True, part_size=100)[0]
+        ufl_train_data = load_train_data('mnist/data/train.csv', is_random_part=True, part_size=ufl_data_size)[0]
 
-        pipeline.unsupervised_features_learning(train_data)
+        pipeline.unsupervised_features_learning(ufl_train_data)
+        ufl_train_data = None
 
         # plot_patches(pipeline.dictionary.T, 10, 10)
 
-        train_data, target = load_train_data('data/mnist/train.csv', is_random_part=True, part_size=3000)
+        train_data, target = load_train_data('mnist/data/train.csv', is_random_part=True, part_size=train_data_size)
 
-        X_train, X_test, y_train, y_test = cross_validation.train_test_split(train_data, target, test_size=0.2,
-                                                                             random_state=0)
+        X_train, X_test, y_train, y_test = cross_validation.train_test_split(train_data, target, test_size=0.2)
 
         pipeline.fit(X_train, y_train)
         predicted = pipeline.predict(X_test)
 
-        print("Classification report for classifier %s:\n%s\n" % (
-            pipeline.classifier, metrics.classification_report(y_test, predicted)))
+        print 'Classification report for classifier %s:\n%s\n' % (
+            pipeline.classifier, metrics.classification_report(y_test, predicted))
+        # print('Confusion matrix:\n%s' % metrics.confusion_matrix(y_test, predicted))
