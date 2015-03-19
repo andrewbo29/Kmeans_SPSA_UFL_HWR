@@ -82,7 +82,6 @@ class KMeansClassic(KMeansClustering):
         super(KMeansClassic, self).clusters_fill(data)
         for label in xrange(self.n_clusters):
             if label not in self.labels_:
-                print label
                 self.is_empty_cluster = True
                 return
 

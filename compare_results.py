@@ -44,11 +44,24 @@ def visualize_two_test_mismatch(test_file_1, test_file_2, path_test, n_row, n_co
     plt.show()
 
 
-if __name__ == '__main__':
-    compare_two_test_results('mnist/results/test_labels1022.csv', 'mnist/results/test_labels2359.csv')
+def prediction_errors_bars(predict, y):
+    bars = []
+    for num in range(10):
+        bars.append((predict[y == num] != num).sum())
 
-    visualize_two_test_mismatch('mnist/results/test_labels1022.csv', 'mnist/results/test_labels2359.csv',
-                                'mnist/data/test.csv', 5, 10)
+    pd.Series(bars).plot(kind='bar', alpha=0.6)
+    plt.show()
+
+
+if __name__ == '__main__':
+    # compare_two_test_results('mnist/results/test_labels1022.csv', 'mnist/results/test_labels2359.csv')
+
+    # visualize_two_test_mismatch('mnist/results/test_labels1022.csv', 'mnist/results/test_labels2359.csv',
+    #                             'mnist/data/test.csv', 5, 10)
+
+    y = np.array([0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9])
+    predict = np.array([1,0,0,1,2,3,3,2,4,4,5,5,6,6,7,7,8,9,8,9])
+    prediction_errors_bars(predict, y)
 
 
 

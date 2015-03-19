@@ -155,6 +155,19 @@ class KMeansUFLPipelineOCR(object):
         print 'Prediction'
         return self.classifier.predict(self.get_data_representation(data))
 
+    def load_dictionary(self, dict_path, data):
+        print 'Loading dictionary'
+        self.dictionary = np.load(dict_path)
+
+        print 'Training ZCA whitening'
+        patch_data = self.get_patched_data(data)
+
+        print ' Normalization'
+        patch_data = self.normalize_data(patch_data)
+        print ' ZCA whitening'
+        self.ZCA = ZCAWhitening(patch_data, self.eps_zca)
+        self.ZCA.fit()
+
 
 def load_train_data(data_filename, is_random_part=False, part_size=1000):
     print 'Loading train data'
@@ -187,7 +200,7 @@ def describe_data(data):
 
 
 def plot_patches(data, n_row, n_col):
-    plt.figure(figsize=(6, 6))
+    plt.figure(figsize=(n_row, n_col))
     for i, comp in enumerate(data):
         plt.subplot(n_row, n_col, i + 1)
         plt.imshow(comp.reshape((8, 8)), cmap=plt.cm.gray_r, interpolation='nearest')
@@ -198,30 +211,36 @@ def plot_patches(data, n_row, n_col):
 
 if __name__ == '__main__':
 
-    # test_type = 'complete_train'
-    test_type = 'cross_val'
+    test_type = 'complete_train'
+    # test_type = 'cross_val'
     # test_type = 'not_complete_train'
+    # test_type = 'load_dict'
 
     if test_type == 'complete_train':
         print 'Complete training'
 
-        cluster_number = 700
-        ufl_data_size = 3000
+        cluster_number = 1500
+        ufl_data_size = None
 
         pipeline = KMeansUFLPipelineOCR(
             kmeans_method=KMeans(n_clusters=cluster_number, precompute_distances=False, verbose=True, n_jobs=-1,
-                                 init='random', n_init=4), classifier=svm.SVC())
+                                 max_iter=100, init='random', n_init=7), classifier=svm.SVC())
 
         # pipeline = KMeansUFLPipelineOCR(
         # kmeans_method=kmeans_types.KMeansSPSA(n_clusters=cluster_number, alpha=0.001, beta=0.001),
         # classifier=svm.SVC())
 
-        ufl_train_data = load_train_data('mnist/data/train.csv', is_random_part=True, part_size=ufl_data_size)[0]
+        if ufl_data_size is None:
+            train_data, target = load_train_data('mnist/data/train.csv')
 
-        pipeline.unsupervised_features_learning(ufl_train_data)
-        ufl_train_data = None
+            pipeline.unsupervised_features_learning(train_data)
+        else:
+            ufl_train_data = load_train_data('mnist/data/train.csv', is_random_part=True, part_size=ufl_data_size)[0]
 
-        train_data, target = load_train_data('mnist/data/train.csv')
+            pipeline.unsupervised_features_learning(ufl_train_data)
+            ufl_train_data = None
+
+            train_data, target = load_train_data('mnist/data/train.csv')
 
         pipeline.fit(train_data, target)
 
@@ -276,19 +295,19 @@ if __name__ == '__main__':
                         k, data_size, conf_matrices[res_ind]))
                     res_ind += 1
 
-    else:
+    elif test_type == 'not_complete_train':
         print 'Not complete training'
 
-        cluster_number = 100
-        ufl_data_size = 500
-        train_data_size = 3000
+        cluster_number = 500
+        ufl_data_size = 3000
+        train_data_size = None
 
         pipeline = KMeansUFLPipelineOCR(
             kmeans_method=KMeans(n_clusters=cluster_number, precompute_distances=False, verbose=True, n_jobs=-1,
                                  init='random', n_init=4), classifier=svm.SVC())
 
         # pipeline = KMeansUFLPipelineOCR(
-        # kmeans_method=kmeans_types.KMeansClassic(n_clusters=cluster_number, n_init=1),
+        # kmeans_method=kmeans_types.KMeansClassic(n_clusters=cluster_number, n_init=1, kmeans_pp=True),
         # classifier=svm.SVC())
 
         # pipeline = KMeansUFLPipelineOCR(
@@ -296,8 +315,8 @@ if __name__ == '__main__':
         # norm_dist_init=True), classifier=svm.SVC())
 
         # pipeline = KMeansUFLPipelineOCR(
-        # kmeans_method=kmeans_types.KMeansSPSA(n_clusters=cluster_number, alpha=0.001, beta=0.001),
-        # classifier=svm.SVC())
+        #     kmeans_method=kmeans_types.KMeansSPSA(n_clusters=cluster_number, alpha=0.001, beta=0.001),
+        #     classifier=svm.SVC())
 
         ufl_train_data = load_train_data('mnist/data/train.csv', is_random_part=True, part_size=ufl_data_size)[0]
 
@@ -306,7 +325,10 @@ if __name__ == '__main__':
 
         # plot_patches(pipeline.dictionary.T, 10, 10)
 
-        train_data, target = load_train_data('mnist/data/train.csv', is_random_part=True, part_size=train_data_size)
+        if train_data_size is None:
+            train_data, target = load_train_data('mnist/data/train.csv')
+        else:
+            train_data, target = load_train_data('mnist/data/train.csv', is_random_part=True, part_size=train_data_size)
 
         X_train, X_test, y_train, y_test = cross_validation.train_test_split(train_data, target, test_size=0.2)
 
@@ -315,4 +337,28 @@ if __name__ == '__main__':
 
         print 'Classification report for classifier %s:\n%s\n' % (
             pipeline.classifier, metrics.classification_report(y_test, predicted))
-        # print('Confusion matrix:\n%s' % metrics.confusion_matrix(y_test, predicted))
+        print('Confusion matrix:\n%s' % metrics.confusion_matrix(y_test, predicted))
+
+    else:
+        print 'Load dictionary training'
+
+        dict_filename = 'mnist/results/dict/dict_kmeans_k_500_data_size_10000.npy'
+        zca_train_data_size = 5000
+
+        pipeline = KMeansUFLPipelineOCR(kmeans_method=None, classifier=svm.SVC())
+
+        zca_train_data = load_train_data('mnist/data/train.csv', is_random_part=True, part_size=zca_train_data_size)[0]
+
+        pipeline.load_dictionary(dict_filename, zca_train_data)
+        zca_train_data = None
+
+        train_data, target = load_train_data('mnist/data/train.csv')
+
+        pipeline.fit(train_data, target)
+
+        train_data = None
+        target = None
+
+        test_data = load_test_data('mnist/data/test.csv')
+        write_labels_csv('mnist/results/test_labels_%s.csv' % dt.now().strftime('%d_%m_%y_%H_%M_%S'),
+                         pipeline.predict(test_data))
